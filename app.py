@@ -21,7 +21,7 @@ def chat():
     response = client.chat.completions.create(
         model='llama-3.3-70b-versatile',
         messages=[
-            {'role': 'system', 'content': 'You are a highly capable AI assistant. Help with any task.'},
+            {'role': 'system', 'content': 'You are a highly capable AI assistant.'},
             *conversation_history
         ]
     )
