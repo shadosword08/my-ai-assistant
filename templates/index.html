@@ -1,38 +1,75 @@
-from flask import Flask, request, jsonify, render_template
-from groq import Groq
-import os
-
-app = Flask(__name__)
-client = Groq(api_key=os.environ.get('GROQ_API_KEY'))
-
-conversation_history = []
-
-@app.route('/')
-def home():
-    return render_template('index.html')
-
-@app.route('/chat', methods=['POST'])
-def chat():
-    data = request.json
-    user_message = data.get('message', '')
-    if not user_message:
-        return jsonify({'error': 'No message provided'}), 400
-    conversation_history.append({'role': 'user', 'content': user_message})
-    response = client.chat.completions.create(
-        model='llama-3.3-70b-versatile',
-        messages=[
-            {'role': 'system', 'content': 'You are a highly capable AI assistant. Help with any task.'},
-            *conversation_history
-        ]
-    )
-    ai_reply = response.choices[0].message.content
-    conversation_history.append({'role': 'assistant', 'content': ai_reply})
-    return jsonify({'response': ai_reply})
-
-@app.route('/reset', methods=['POST'])
-def reset():
-    conversation_history.clear()
-    return jsonify({'status': 'cleared'})
-
-if __name__ == '__main__':
-    app.run(debug=True)
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My AI Assistant</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: #f0f4ff; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .container { width: 100%; max-width: 800px; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); display: flex; flex-direction: column; height: 90vh; }
+    .header { background: #1a56db; color: white; padding: 20px; text-align: center; font-size: 22px; font-weight: bold; border-radius: 12px 12px 0 0; }
+    #chat-box { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+    .user-msg { background: #1a56db; color: white; padding: 12px 16px; border-radius: 18px 18px 4px 18px; align-self: flex-end; max-width: 70%; }
+    .ai-msg { background: #f3f4f6; color: #111827; padding: 12px 16px; border-radius: 18px 18px 18px 4px; align-self: flex-start; max-width: 70%; white-space: pre-wrap; }
+    .thinking { color: #9ca3af; font-style: italic; }
+    .input-area { display: flex; padding: 16px; gap: 10px; border-top: 1px solid #e5e7eb; }
+    #user-input { flex: 1; padding: 12px 16px; border: 1px solid #d1d5db; border-radius: 24px; font-size: 15px; outline: none; }
+    #user-input:focus { border-color: #1a56db; }
+    .send-btn { background: #1a56db; color: white; border: none; border-radius: 50%; width: 46px; height: 46px; cursor: pointer; font-size: 20px; }
+    .reset-btn { background: #6b7280; color: white; border: none; border-radius: 24px; padding: 0 16px; cursor: pointer; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">🤖 My AI Assistant</div>
+    <div id="chat-box">
+      <div class="ai-msg">Hi! I am your AI assistant. Ask me anything!</div>
+    </div>
+    <div class="input-area">
+      <input id="user-input" type="text" placeholder="Ask me anything..." />
+      <button class="reset-btn" onclick="resetChat()">Reset</button>
+      <button class="send-btn" onclick="sendMessage()">➤</button>
+    </div>
+  </div>
+  <script>
+    async function sendMessage() {
+      const input = document.getElementById('user-input');
+      const msg = input.value.trim();
+      if (!msg) return;
+      addMessage(msg, 'user-msg');
+      input.value = '';
+      const thinking = addMessage('Thinking...', 'ai-msg thinking');
+      try {
+        const res = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: msg })
+        });
+        const data = await res.json();
+        thinking.remove();
+        addMessage(data.response, 'ai-msg');
+      } catch (err) {
+        thinking.remove();
+        addMessage('Something went wrong. Please try again.', 'ai-msg');
+      }
+    }
+    function addMessage(text, cls) {
+      const box = document.getElementById('chat-box');
+      const div = document.createElement('div');
+      div.className = cls;
+      div.textContent = text;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+      return div;
+    }
+    async function resetChat() {
+      await fetch('/reset', { method: 'POST' });
+      document.getElementById('chat-box').innerHTML = '<div class="ai-msg">Chat reset! How can I help?</div>';
+    }
+    document.getElementById('user-input').addEventListener('keypress', e => {
+      if (e.key === 'Enter') sendMessage();
+    });
+  </script>
+</body>
+</html>
